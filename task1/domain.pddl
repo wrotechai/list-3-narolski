@@ -1,41 +1,46 @@
-; Task 1 — Package transport.  ===  WRITE YOUR MODEL HERE  ===
+; Task 1 — Package transport / logistics (reference solution).
 ;
-; Design a logical model for transporting packages between locations using
-; vehicles, then run a planner and analyse the plan (length, cost, the effect
-; of the transport topology).
-;
-; Minimum: a :strips :typing model where packages are LOADED onto vehicles,
-; vehicles MOVE between locations, and packages are UNLOADED at the destination.
-; The autograder checks that the model is typed and that the plan carries
-; packages with vehicles (it must use several distinct actions, e.g.
-; load / move / unload — packages may not "teleport").
-;
-; Optional extensions you may use (graded in the report / by the teacher):
-;   :negative-preconditions   negative conditions, e.g. (not (at ?p ?l))
-;   :conditional-effects      optional conditional effects
-;   :action-costs / :numeric-fluents   action costs and a (:metric ...)
-;   :durative-actions         action durations
-;   multiple transport modes  road / air / water with different vehicles
-;
-; NOTE: pyperplan (used in CI) supports :strips, :typing and
-; :negative-preconditions. If you add :action-costs / :durative-actions /
-; :numeric-fluents, make sure the model also solves with Fast Downward —
-; the autograder falls back to it. Test at https://editor.planning.domains.
+; Packages are loaded onto vehicles, vehicles travel along the transport
+; topology, and packages are unloaded at their destination. Two transport
+; modes are modelled: trucks travel along ROADS (within a city) and planes
+; travel along AIR links (between airports).
 
 (define (domain package-transport)
   (:requirements :strips :typing)
   (:types
-    ; TODO: e.g. package location vehicle
+    package location vehicle - object
+    truck plane - vehicle
   )
 
   (:predicates
-    ; TODO: e.g. (at ?p - package ?l - location)
-    ;            (in ?p - package ?v - vehicle)
-    ;            (vehicle-at ?v - vehicle ?l - location)
-    ;            (connected ?from - location ?to - location)
+    (at-pkg ?p - package ?l - location)   ; package is at a location
+    (at-veh ?v - vehicle ?l - location)   ; vehicle is at a location
+    (in ?p - package ?v - vehicle)        ; package is loaded on a vehicle
+    (road ?from - location ?to - location); road link (trucks)
+    (air ?from - location ?to - location) ; air link (planes)
   )
 
-  ; TODO: (:action load ...)
-  ; TODO: (:action move ...)   ; or drive / fly / sail per transport mode
-  ; TODO: (:action unload ...)
+  (:action load
+    :parameters (?p - package ?v - vehicle ?l - location)
+    :precondition (and (at-pkg ?p ?l) (at-veh ?v ?l))
+    :effect (and (not (at-pkg ?p ?l)) (in ?p ?v))
+  )
+
+  (:action unload
+    :parameters (?p - package ?v - vehicle ?l - location)
+    :precondition (and (in ?p ?v) (at-veh ?v ?l))
+    :effect (and (at-pkg ?p ?l) (not (in ?p ?v)))
+  )
+
+  (:action drive
+    :parameters (?t - truck ?from - location ?to - location)
+    :precondition (and (at-veh ?t ?from) (road ?from ?to))
+    :effect (and (not (at-veh ?t ?from)) (at-veh ?t ?to))
+  )
+
+  (:action fly
+    :parameters (?pl - plane ?from - location ?to - location)
+    :precondition (and (at-veh ?pl ?from) (air ?from ?to))
+    :effect (and (not (at-veh ?pl ?from)) (at-veh ?pl ?to))
+  )
 )

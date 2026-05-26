@@ -1,24 +1,44 @@
-; Task 1 — Package transport problem.  ===  WRITE YOUR PROBLEM HERE  ===
+; Task 1 — Package transport problem (reference solution).
 ;
-; Declare your locations, vehicles and packages, the initial state, and a goal
-; that requires every package to reach its destination. Design the topology
-; (which locations are connected, by which transport mode) so you can analyse
-; its effect on the plan.
+; Topology:  City A: depotA --road-- airportA
+;            City B: storeB --road-- airportB
+;            Air link: airportA --air-- airportB
+;
+; pkg1: depotA  -> storeB   (needs truck + plane + truck: road, air, road)
+; pkg2: depotA  -> airportA (same city: truck only, road)
 
 (define (problem deliver-packages)
   (:domain package-transport)
 
   (:objects
-    ; TODO: locations, vehicles, packages with their types
+    depotA airportA storeB airportB - location
+    truckA truckB - truck
+    plane1 - plane
+    pkg1 pkg2 - package
   )
 
   (:init
-    ; TODO: where everything starts; the transport topology (connections)
+    ; vehicles
+    (at-veh truckA depotA)
+    (at-veh truckB storeB)
+    (at-veh plane1 airportA)
+
+    ; packages
+    (at-pkg pkg1 depotA)
+    (at-pkg pkg2 depotA)
+
+    ; road topology (bidirectional)
+    (road depotA airportA) (road airportA depotA)
+    (road storeB airportB) (road airportB storeB)
+
+    ; air topology (bidirectional)
+    (air airportA airportB) (air airportB airportA)
   )
 
   (:goal
     (and
-      ; TODO: (at package1 destination1) ...
+      (at-pkg pkg1 storeB)
+      (at-pkg pkg2 airportA)
     )
   )
 )
