@@ -1,5 +1,13 @@
 name: Autograding Tests
 
+# Self-contained autograder. Uses only GitHub-owned actions (checkout / setup-python
+# / cache) so it runs under any organization "allowed actions" policy. It runs the
+# PDDL tests directly and prints a graded summary to the Actions run summary.
+#
+# NOTE: this does not feed the GitHub Classroom "autograding" points panel, which
+# requires the classroom-resources/* actions. If your org allows those actions, you
+# can switch back to the command-grader + grading-reporter workflow.
+
 on:
   push:
     branches: [main]
@@ -15,7 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor != 'github-classroom[bot]'
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -26,9 +35,9 @@ jobs:
         run: pip install pyperplan
 
       # Fast Downward is an optional fallback for PDDL features pyperplan cannot
-      # ground (e.g. :action-costs, :numeric-fluents). The build is cached so it
-      # only runs once. If the build fails, the autograder still works on every
-      # STRIPS/typing model via pyperplan.
+      # ground (:action-costs, :numeric-fluents, :durative-actions). Cached so it
+      # builds once. If it fails, every STRIPS/typing model is still graded via
+      # pyperplan.
       - name: Cache Fast Downward
         id: cache-fd
         uses: actions/cache@v4
@@ -44,12 +53,49 @@ jobs:
           git clone --depth 1 --branch release-24.06 https://github.com/aibasel/downward.git
           cd downward && ./build.py
 
-      - name: Expose Fast Downward to the autograder
-        if: always()
+      - name: Run autograder
+        shell: bash
         run: |
           if [ -f downward/fast-downward.py ]; then
-            echo "FAST_DOWNWARD=$GITHUB_WORKSPACE/downward/fast-downward.py" >> "$GITHUB_ENV"
+            export FAST_DOWNWARD="$GITHUB_WORKSPACE/downward/fast-downward.py"
           fi
 
-      - name: Autograding
-        uses: education/autograding@v1
+          declare -A PTS=(
+            [T1_GRIPPER_PARSE]=2  [T2_GRIPPER_PLAN]=5
+            [T3_VACUUM_PARSE]=2   [T4_VACUUM_PLAN]=5   [T5_VACUUM_GOAL]=5
+            [T6_TRANSPORT_PARSE]=3 [T7_TRANSPORT_PLAN]=7
+            [T8_TRANSPORT_TYPING]=5 [T9_TRANSPORT_MULTI]=6
+          )
+          ORDER=(T1_GRIPPER_PARSE T2_GRIPPER_PLAN T3_VACUUM_PARSE T4_VACUUM_PLAN \
+                 T5_VACUUM_GOAL T6_TRANSPORT_PARSE T7_TRANSPORT_PLAN \
+                 T8_TRANSPORT_TYPING T9_TRANSPORT_MULTI)
+
+          earned=0; total=0; failed=0
+          echo "| Test | Result | Points |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|--------|--------|" >> "$GITHUB_STEP_SUMMARY"
+
+          for t in "${ORDER[@]}"; do
+            p=${PTS[$t]}; total=$((total + p))
+            echo "::group::$t"
+            if out=$(python3 tests/autograder.py "$t" 2>&1); then
+              echo "$out"; echo "::endgroup::"
+              earned=$((earned + p))
+              echo "| $t | ✅ pass | $p / $p |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "$out"; echo "::endgroup::"
+              failed=$((failed + 1))
+              echo "| $t | ❌ fail | 0 / $p |" >> "$GITHUB_STEP_SUMMARY"
+              echo "::error title=$t::$out"
+            fi
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Total: $earned / $total points** ($failed test(s) failed)" >> "$GITHUB_STEP_SUMMARY"
+          echo "=============================================="
+          echo "  TOTAL: $earned / $total points  ($failed failed)"
+          echo "=============================================="
+
+          # Clean up planner artifacts so they are not left in the workspace.
+          rm -f task*/problem.pddl.soln
+
+          [ "$failed" -eq 0 ]
