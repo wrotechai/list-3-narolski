@@ -31,7 +31,7 @@ import sys
 import tempfile
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TIMEOUT = 300  # seconds per planner run
+TIMEOUT = 120  # seconds per planner run
 
 
 # ── Failure type ─────────────────────────────────────────────
